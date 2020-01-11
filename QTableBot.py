@@ -70,8 +70,7 @@ while True:
         if not shipid in my_ship_ids:
             #old ship is dead
             rewards.append(-1000)
-            dones.append(False)
-            continue
+            dones.append(True)
         elif me.get_ship(shipid).position == me.shipyard.position and old_ship_halite:
             feuel_cost_last_round = (old_cell_halite * 0.1)
             rewards.append(round(old_ship_halite - feuel_cost_last_round + 0.5))
