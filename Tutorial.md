@@ -293,6 +293,12 @@ The formular for updating the Q-table is:
 
 ![equation](https://latex.codecogs.com/gif.latex?%5Cinline%20Q_t%20%3D%20l*Q_t&plus;%281-l%29*%28r&plus;d*%5Carg%5C%21%5Cmax%20Q_%7Bt&plus;1%7D%29)
 
+* `Q_t` is the reward that we expect from the action we took in the current step t
+* `l` is the learning rate (e.g. 0.1)
+* `r` is the reward observed at time t
+* `d` is to discount future reward, since we are not sure how much the current move contributed to the future reward (e.g. 0.95)
+* `Q_t+1` is the maximum expected reward of the next state (according to our table)
+
 In code it looks like this:
 
 ```python
@@ -313,8 +319,10 @@ In code it looks like this:
 This is the main training loop. Unfortunately Halite engine does not call us after the last round again to store away any state. 
 It will just kill our process, so we need to have our own inetrnal decision on when to do that. So we check if the current round is the last.
 
-We go through all stored states, actions, rewards etc. 
+We go through all stored states, actions, rewards etc. and if we are in a final state we set the actual reward of the action in the current state to the reward. If we are not in a final state we apply above formula to estimate the reward tht we will make given this move. 
+The last line is adding some logging so we can get a glimpse of how it will look like when our table is learning.
 
+Last we need to write the table to disk to store the state:
 
 ```python
         logging.info(f"Writing to {TABLE} - {len(table)} - {len(states)}")
@@ -323,6 +331,138 @@ We go through all stored states, actions, rewards etc.
 
     game.end_turn(command_queue)
 ```
-## Getting your hands dirty
+## Some more stuff for easier debugging and some results
 
-What we need to do in order to implement Q-Tables is, we need
+To run this you can use the `run_game.sh` with something like this:
+
+```sh
+#!/bin/sh
+
+$TABLE=$1
+$EPSILON=$2
+
+./halite --seed 123 --replay-directory replays/ --turn-limit 10 --no-logs -vvv --width 16 --height 16 "python3 QTableBot.py $EPSILON $TABLE" "python3 QTableBot.py 0.5 table_right"
+```
+
+you can call it with
+```
+./run_game.sh myTable 0.0
+```
+which will run a game using no random moves and just moving from our table.
+
+Unless you specified the `--no-replay` option you can find a replay in the `replays` folder (a file ending on `*.hlt`) and watch it on the [halite](https://2018.halite.io/watch-games) website by just dragging it there.
+
+Also you should be able to see that halite engine produces a bot-0.log and bot-1.log.
+Inside you should be able to see the logging we implemented above at the end of each file like
+
+```
+INFO:root:Initializing myTable
+INFO:root:Successfully1 created bot! My Player ID is 0.
+INFO:root:=============== TURN 001 ================
+INFO:root:=============== TURN 002 ================
+INFO:root:=============== TURN 003 ================
+INFO:root:=============== TURN 004 ================
+INFO:root:=============== TURN 005 ================
+INFO:root:=============== TURN 006 ================
+INFO:root:=============== TURN 007 ================
+INFO:root:=============== TURN 008 ================
+INFO:root:=============== TURN 009 ================
+INFO:root:=============== TURN 010 ================
+INFO:root:c260d67d114e675abaa37c912bdf21787396828c704008d228e88efe | (-1, 0) | -1 | False | [0.4, 0.57, 0.81, -0.06, 0.46, 1]
+INFO:root:3db150a61f98c9874a2a17cae4de1cd25bdfbc301e9f28f6a8aeaa3a | (0, 0) | -1 | False | [0.68, 0.22, 0.21, 0.43, 0.03, 1]
+INFO:root:211d0d516807bcdc7d01ee2bedde52f04b367b106ba8b992a1539a00 | (0, 0) | -1 | False | [0.17, 0.86, 0.62, 0.3, -0.05, 1]
+INFO:root:fb437b9e1ad15afb0ba219ce18d366332e558743f351913985ae4200 | (-1, 0) | -1 | False | [0.72, 0.03, 0.73, -0.02, 0.51, 1]
+INFO:root:7ee0d73b982b3fa50ab35788bb105242f309060f23211d8907e83e6f | (0, -1) | -1 | False | [-0.03, 0.24, 0.2, 0.07, 0.33, 1]
+INFO:root:ada7d3f9d171da0852c0600ca4d391e5274cb42bcfccd21981ef82ea | (0, -1) | -1 | False | [-0.03, 0.66, 0.62, 0.03, 0.74, 1]
+INFO:root:98aeaafdbfb462fdbca72f8074096ae175a95cfce8d169452c60ed3d | (0, -1) | -1 | False | [-0.01, 0.79, 0.05, 0.51, 0.13, 1]
+INFO:root:40afd21f83d94948ad04976c64e3a5218d0e8b761df5ebdbd6730181 | (0, 1) | -1 | False | [0.05, 0.43, 0.02, 0.13, 0.51, 1]
+INFO:root:Writing to table_left - 9 - 9
+```
+
+We can see the hashes of each state, which move was chosen in terms of `(dx, dy)` and whether its a terminal state and then the array containing the expected future reward, where in our case the negative entries are already updated values according to our learning formula. 
+You may notice the last number 1 which is some additional debugging that I implemened to see how often we visted a given state
+
+if we rerun the same command with no exploration we can see
+
+```
+INFO:root:c260d67d114e675abaa37c912bdf21787396828c704008d228e88efe | (0, 1) | -1 | False | [0.4, 0.57, -0.11, -0.06, 0.46, 2]
+INFO:root:0914ee6d8bbb4b23b58e9541c49c824406d7111877e75aa037b98429 | (0, 1) | -1 | False | [0.66, 0.82, -0.36, 0.67, 0.32, 1]
+INFO:root:c371d77cf617a467d1f57157facb3c4e5abb7912c8a2424d8d1409a6 | (1, 0) | -1 | False | [0.21, -0.13, 0.31, 0.29, 0.07, 1]
+INFO:root:9ceea48b8bfa5195a19992bc818612b59ccb3bd39c9034acf33b955a | (0, 0) | -1 | False | [0.18, 0.06, 0.66, 0.54, -0.45, 1]
+INFO:root:0b0eb2b022140fc937b69963a1c4834d8cb350dbc52551605e8f33f6 | (0, 0) | -1 | False | [0.39, 0.24, 0.14, 0.17, -0.03, 1]
+INFO:root:04c3cbf50f22b78fb5b2c2d1939cbd802d2df327d01ea2f9ca8270ae | (0, 0) | -1 | False | [0.08, 0.76, 0.83, 0.76, -0.17, 1]
+INFO:root:34af96a04d8e09731226dc264ba5dc7ba0c6c3e2183f4617387ec4ca | (-1, 0) | -1 | False | [0.63, 0.0, 0.44, 0.03, 0.59, 1]
+INFO:root:a3a5965b7a6dc82a977641952f4e7f2cc5418c54e3e0dd5f1b238d3b | (1, 0) | -1 | False | [0.33, 0.05, 0.41, 0.27, 0.39, 1]
+INFO:root:Writing to table_left - 17 - 9
+```
+
+This time we visited the first state (beginning state) twice and we took different moves than before. This is because in the previous run we updated all our moves according to the reward we got (which was -1) so some moves now have negative values.
+While this may seem like we could just run it like that and we would eventually find some good move patterns it is better to start with true random moves.
+
+If we run it like we implemented it though we will find that it will take incredibly long for our table to learn anything though this is because there is just so many states in our game. To actually show some interesting output we should take care of a couple of things:
+
+* Replace the oponent bot with a bot that does nothing, since when our oponent moves around and collects halite it alters the state of the game. So even if our bot makes the exact same moves it will look like a new state
+
+If we do this we can add another bash script `batch_run_qtable.sh` to simulate a couple hundred games:
+
+```
+#!/bin/sh
+TABLE=$1
+EPSILON=$2
+
+for i in {1..500000}
+do
+  ./halite --seed 123 --turn-limit 10 --replay-directory replays/ --no-timeout --no-replay --no-logs -v --width 16 --height 16 "python3 QTableBot.py $2 $1" "python3 DoNothingBot.py"
+  echo $i
+  ls -lh ./$1
+done
+```
+
+Now we can just run this and kill it with ctrl-c if we think we have had enough.
+So I ran it for ~500 games with 1.0 epsilon and then one `run_game.sh` with 0.0 epsilon to see the "best" path it know so far.
+
+```
+INFO:root:9b0079371c6eb59f6e62f19ffa83a63dce1ce106151c043eef0872e6 | (0, 1) | -1 | False | [41.5, 20.3, 98.92, 58.83, 92.9, 495]
+INFO:root:b55eb3a45d9df8de37b421466c6d29e5254cbad560e519d8df3ff67d | (1, 0) | -1 | False | [104.96, 105.2, 104.91, 105.02, 104.55, 99]
+INFO:root:f61bf7d28aef9f2861be435d460631597a94ca22b4e7992507d06ed8 | (0, 1) | -1 | False | [40, 21.47, 111.8, -0.05, 80.7, 99]
+INFO:root:8b161eba010fb0d51c6568111b286d6aef77cf03440cbfc5f113375c | (-1, 0) | -1 | False | [106.87, 106.87, 115.62, 118.85, 118.64, 32]
+INFO:root:2b1ff6ea3b9e171b1416e7e12c492a87ea90743881044886d5e7280f | (0, -1) | -1 | False | [126.29, -0.88, -1.05, -0.93, -0.2, 32]
+INFO:root:0048cc512b18420e19800e4f82cafbbb6d7a716ca9e83f13cdfd4e0b | (0, -1) | 134 | True | [134, 0.62, -0.36, -0.2, -0.13, 8]
+INFO:root:0c6e09e964bd75de18b8fcff64c2b6955e56b2cafb7c2572e7cc2a46 | (0, 0) | -1 | False | [0.0, 0.15, 0.02, 0.15, 0.02, 2]
+INFO:root:0c6e09e964bd75de18b8fcff64c2b6955e56b2cafb7c2572e7cc2a46 | (0, 0) | -1 | False | [0.0, 0.15, 0.02, 0.15, -0.77, 3]
+INFO:root:Writing to myTable10Turns - 1114 - 9
+```
+
+Next we run it with EPSILON set to 0.5 so we make every second move random, for about 200 episodes
+
+
+```
+INFO:root:9b0079371c6eb59f6e62f19ffa83a63dce1ce106151c043eef0872e6 | (0, 1) | -1 | False | [52.67, 46.43, 187.3, 58.9, 176.84, 714]
+INFO:root:b55eb3a45d9df8de37b421466c6d29e5254cbad560e519d8df3ff67d | (0, 1) | -1 | False | [197.35, 198.16, 198.21, 198.2, 198.21, 234]
+INFO:root:f61bf7d28aef9f2861be435d460631597a94ca22b4e7992507d06ed8 | (0, 1) | -1 | False | [40, 29.35, 209.69, 11.57, 106.34, 234]
+INFO:root:8b161eba010fb0d51c6568111b286d6aef77cf03440cbfc5f113375c | (0, -1) | -1 | False | [221.78, 173.23, 211.46, 221.77, 221.29, 117]
+INFO:root:2b1ff6ea3b9e171b1416e7e12c492a87ea90743881044886d5e7280f | (0, 0) | -1 | False | [144.29, -1.38, -1.14, -1.08, 234.5, 117]
+INFO:root:abd985e71a0ba0235f4346ff3914fb6a0bc37a10b504f1cea08d1b95 | (0, -1) | -1 | False | [247.9, 0.04, -0.06, -0.61, -0.04, 20]
+INFO:root:328a0685d0f5490749cd649511d1c4f752f321bfbe2e80c0ae40e63d | (0, -1) | 262 | True | [262, -0.18, -0.17, -0.13, 0.6, 13]
+INFO:root:9e266f7a9b4d32bb6623e8c383e097c6094523ba68ac180eacdda1ac | (0, 1) | -1 | False | [-0.19, -0.11, -0.1, -0.1, -0.23, 9]
+INFO:root:Writing to myTable10Turns - 1398 - 9
+```
+
+then we run it another 100 episodes with EPSILON 0.1
+
+```
+INFO:root:9b0079371c6eb59f6e62f19ffa83a63dce1ce106151c043eef0872e6 | (0, 1) | -1 | False | [52.67, 49.2, 209.05, 58.9, 197.58, 856]
+INFO:root:b55eb3a45d9df8de37b421466c6d29e5254cbad560e519d8df3ff67d | (0, 1) | -1 | False | [218.73, 218.82, 221.11, 198.21, 218.82, 367]
+INFO:root:f61bf7d28aef9f2861be435d460631597a94ca22b4e7992507d06ed8 | (0, 1) | -1 | False | [40, 34.76, 233.8, 41.93, 106.34, 367]
+INFO:root:8b161eba010fb0d51c6568111b286d6aef77cf03440cbfc5f113375c | (0, 1) | -1 | False | [244.65, 216.92, 247.16, 247.13, 244.62, 243]
+INFO:root:2b1ff6ea3b9e171b1416e7e12c492a87ea90743881044886d5e7280f | (0, 0) | -1 | False | [144.29, -1.41, -1.14, 93.91, 261.22, 243]
+INFO:root:abd985e71a0ba0235f4346ff3914fb6a0bc37a10b504f1cea08d1b95 | (0, -1) | -1 | False | [276.02, -0.86, -0.06, -0.64, -0.24, 139]
+INFO:root:328a0685d0f5490749cd649511d1c4f752f321bfbe2e80c0ae40e63d | (0, 0) | -1 | False | [262, -0.79, -0.91, -0.16, 291.6, 125]
+INFO:root:12a62722a74c4ab2127e39c922e73679d82cbfa6f830d4b78a8a5aa3 | (0, -1) | 308 | True | [308, -0.01, -0.2, -0.18, -0.07, 59]
+INFO:root:Writing to myTable10Turns - 1441 - 9
+```
+
+We can see how it converged from 143 to 262 to finally 308 resource collected, looking at the movement pattern it seems like the bot only collected resource twice which seems strange. By comparing this with the replay I found that if a bot cannot move because it cannot pay the fuel cost to move it will default to standing still, which in our case attributes the reward slightly wrong. the second and fourth move in the list were actually stand stills.
+The bot moved down twice and up twice. (if you just add the tuples you would otherwise not end up at the orignal place when the bot says its done)
+
+
