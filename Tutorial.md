@@ -37,7 +37,7 @@ For this I tried...
 This will be the written step by step tutorial including results that I think are worth sharing.
 Also this will be one of the rather few examples that does not use `Gym` or some other library that wraps the complexity of the game behind something that returns a nice state and reward and action representation. So far not many tutorials talk about it but I find making decisions on how to structure these things are not at all trivial and just implenenting a DQN that can learn cartpole is in my opinion good for learning the general algorithms but leaves me with very little knowledge on how to apply Reinforcement Learning in the real world.
 
-## The basic "random" bot
+## The baseline: "random" bot
 
 This is the version of the bot that comes with the starter pack. We will later modify this bot to make sure we store the information we need to train our reinforcement learning algorithm.
 
@@ -484,10 +484,13 @@ INFO:root:f76dd0f64beb8aa534c4de8672f8bf7cb5c2ee22c18b264ce01049a9 | (1, 0) | -1
 INFO:root:42f66d0cd8cce668ad144aef3f8abe9dc37b5f92caef65aa5f3674a1 | (1, 0) | 414 | True | [-1, 414, -1, -1, -1, 438]
 INFO:root:Writing to myTableConditionedOnTurnS - 10859 - 9
 ```
+![QTableBot](https://user-images.githubusercontent.com/1778723/72352937-7a90af80-36e3-11ea-82d3-cb3664c7d08e.gif)
+
 It is also interesting to note that while the initial state was seen 19148 times we only have a total of 10859 keys, depending on the size of our state space this can increase drastically.
 If we take the ratio it kind of shows us that on average every state was vistited 1.8 times. Of course the true distribution of visits is very left skewed with the first state being always vistied and the next ones already only ~4500 times as we can see above.
 So while this already helped find a couple of issues with our reward function and quite some bugs (that I didn't describe here but stuff didn't quite work out of the box)
-the result is nice but also a little bit: so what? we could have probably written a breath/depth first search or some other heuristic and found that solution much easier than implementing such a complicated solution. And while this is true for the example that I showed here it all depends on how we encode our state.
+the result is nice but also a little bit: so what? we could have probably written a breath/depth first search or some other heuristic and found that solution much easier than implementing such a complicated solution. We are only doing the first 10 steps of the game and not considering anything else.
+And while this is true for the example that I showed here it all depends on how we encode our state.
 Can we somehow encode the state of the game in a different way that helps us generalize better being able to reuse the state for many ships and many situations?
 A couple of ideas that pop to my mind are:
 
