@@ -1,12 +1,18 @@
 # Deep Reinforcement Learning for Halite III
 
 [Halite III](http://www.halite.io "Halite III") is a game developed by two sigma.
-There was a competition in 2018 trying to build a bot that could collect the most amount of halite (resource).
+Its a competition where you implement the behavior of bots to collect resources.
 
-The game consists of the key elements of:
-* Moving ships around and using them to collect a resource
-* Deciding whether to build more ships or have any ship convert into another base to shorten travel distances
-* Having more halite in your bank at the end of the game than your opponent. So building ships etc is a tradeoff between having more resource in your bank or collecting faster
+The key rules of the game are:
+* You start with 5000 resource in your "bank" and can build ships in your main base. 
+* A ship costs 1000 resource and can either move up, down, left, right, collect resource or build a depot.
+* Ships can move around the playfield and collect resource that they need to drop off at either your main base or a depot
+* Moving around costs 10% of the resource on a given field
+* Collecting resource takes one turn and collects 25% of the resource on the given field
+* Building another depot (to reduce travel times) costs 4000 resource
+* Winner is whoever has most resource in the bank at the end of all turns
+
+As you can see there is quite some complexity to the game. For this tutorial(series) I want to focus on building a reinforcement learning framework that focuses on moving ships, and collecting resources, maybe even decide when and how many ships to build but the first part is already complex enough.
 
 Checkout the page of the competiton above for more details about the rules.
 
@@ -464,5 +470,32 @@ INFO:root:Writing to myTable10Turns - 1441 - 9
 
 We can see how it converged from 143 to 262 to finally 308 resource collected, looking at the movement pattern it seems like the bot only collected resource twice which seems strange. By comparing this with the replay I found that if a bot cannot move because it cannot pay the fuel cost to move it will default to standing still, which in our case attributes the reward slightly wrong. the second and fourth move in the list were actually stand stills.
 The bot moved down twice and up twice. (if you just add the tuples you would otherwise not end up at the orignal place when the bot says its done)
+
+Fixing these issues and letting it run for ~20k random walks we find the perfect solution.
+
+```
+INFO:root:314a169275c037ea227f7b7dc6764112e32fcbc0739d4df1a157a9a0 | (-1, 0) | -1 | False | [135.73, 129.44, 187.3, 283.08, -1, 19148]
+INFO:root:e2d6942c8c5913d816544441f5328b24e4a14c4fdab06cc7168b8d1f | (0, 0) | -1 | False | [0.91, 0.81, 0.22, 0.17, 299.03, 4461]
+INFO:root:cbc967432cbba0ad7cb97a413092e0e92b6278831a605904073b0c1a | (-1, 0) | -1 | False | [91.4, 25, 91.37, 315.82, 251.6, 4461]
+INFO:root:c75fab8f9dd5497724c8e5c254ae964eada241d07bb0fd70b68d1d96 | (0, 0) | -1 | False | [0.33, 0.23, 0.92, 0.52, 333.5, 1492]
+INFO:root:ab6f37d146ce90e61fb87e1824f4708a7dfe99834af5353736b50ed6 | (0, 0) | -1 | False | [96.6, 165.21, 100.04, 68.31, 352.1, 1492]
+INFO:root:41f401d20debb2d0669f206ff8b727af60a138799bda0e3e7682278b | (0, 0) | -1 | False | [-2.85, 296.77, -2.85, -2.85, 371.68, 757]
+INFO:root:f76dd0f64beb8aa534c4de8672f8bf7cb5c2ee22c18b264ce01049a9 | (1, 0) | -1 | False | [-1.95, 392.3, -1.95, -1.95, -1.95, 558]
+INFO:root:42f66d0cd8cce668ad144aef3f8abe9dc37b5f92caef65aa5f3674a1 | (1, 0) | 414 | True | [-1, 414, -1, -1, -1, 438]
+INFO:root:Writing to myTableConditionedOnTurnS - 10859 - 9
+```
+It is also interesting to note that while the initial state was seen 19148 times we only have a total of 10859 keys, depending on the size of our state space this can increase drastically.
+If we take the ratio it kind of shows us that on average every state was vistited 1.8 times. Of course the true distribution of visits is very left skewed with the first state being always vistied and the next ones already only ~4500 times as we can see above.
+So while this already helped find a couple of issues with our reward function and quite some bugs (that I didn't describe here but stuff didn't quite work out of the box)
+the result is nice but also a little bit: so what? we could have probably written a breath/depth first search or some other heuristic and found that solution much easier than implementing such a complicated solution. And while this is true for the example that I showed here it all depends on how we encode our state.
+Can we somehow encode the state of the game in a different way that helps us generalize better being able to reuse the state for many ships and many situations?
+A couple of ideas that pop to my mind are:
+
+* Bucket/binning of the resoruces in each field, since each change in resource on a field changes our state, we could round/bucket the resource amount to the nearest 5,10 or 50, so collecting resource on a field would not always change its value
+* Center the state "map" around the ship itself instead of making it a global state of the map, so each ship would see itself as the center of the universe
+* Have a smaller area around the ship where we have full resolution of the game map and aggregate everything further away, e.g. on a 16x16 map we could have a ship that sees a 4x4 surrounding
+* Use neural networks and just generalize over all of that and don't bother with the "rigidness" of the problem but open up a whole other can of worms.
+
+The latter is what we will do next :)
 
 

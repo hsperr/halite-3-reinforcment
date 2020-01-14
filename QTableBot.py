@@ -77,14 +77,16 @@ while True:
             dones.append(True)
         else:
             rewards.append(-1)
-            dones.append(False)
+            dones.append(me.get_ship(shipid).position == me.shipyard.position)
 
     shipid2shipandcell = {}
             
     for ship in me.get_ships():
-            state = create_state_array(game_map, ship)
+            state = create_state_array(game, ship)
             states.append(state)
-            if random.random() < EPSILON:
+            if ship.halite_amount < game_map[ship.position].halite_amount * 0.1:
+                move = Direction.Still # can't move anyway
+            elif random.random() < EPSILON:
                 move = random.choice(POSSIBLE_MOVES)
             else:
                 current_q = lookup_table(table, state)
@@ -100,6 +102,7 @@ while True:
         command_queue.append(me.shipyard.spawn())
 
     if game.turn_number == constants.MAX_TURNS:
+        dones[-1]=True
         # logging.info(f"{len(states)} - {len(action_indices)} - {len(rewards)} - {len(dones)}")
         for state, next_state, action_index, reward, done in zip(states, states[1:], action_indices, rewards, dones):
             current_q = lookup_table(table, state)
