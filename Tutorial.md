@@ -428,14 +428,14 @@ Now we can just run this and kill it with ctrl-c if we think we have had enough.
 So I ran it for ~500 games with 1.0 epsilon and then one `run_game.sh` with 0.0 epsilon to see the "best" path it know so far.
 
 ```
-INFO:root:9b0079371c6eb59f6e62f19ffa83a63dce1ce106151c043eef0872e6 | (0, 1) | -1 | False | [41.5, 20.3, 98.92, 58.83, 92.9, 495]
-INFO:root:b55eb3a45d9df8de37b421466c6d29e5254cbad560e519d8df3ff67d | (1, 0) | -1 | False | [104.96, 105.2, 104.91, 105.02, 104.55, 99]
-INFO:root:f61bf7d28aef9f2861be435d460631597a94ca22b4e7992507d06ed8 | (0, 1) | -1 | False | [40, 21.47, 111.8, -0.05, 80.7, 99]
-INFO:root:8b161eba010fb0d51c6568111b286d6aef77cf03440cbfc5f113375c | (-1, 0) | -1 | False | [106.87, 106.87, 115.62, 118.85, 118.64, 32]
-INFO:root:2b1ff6ea3b9e171b1416e7e12c492a87ea90743881044886d5e7280f | (0, -1) | -1 | False | [126.29, -0.88, -1.05, -0.93, -0.2, 32]
-INFO:root:0048cc512b18420e19800e4f82cafbbb6d7a716ca9e83f13cdfd4e0b | (0, -1) | 134 | True | [134, 0.62, -0.36, -0.2, -0.13, 8]
-INFO:root:0c6e09e964bd75de18b8fcff64c2b6955e56b2cafb7c2572e7cc2a46 | (0, 0) | -1 | False | [0.0, 0.15, 0.02, 0.15, 0.02, 2]
-INFO:root:0c6e09e964bd75de18b8fcff64c2b6955e56b2cafb7c2572e7cc2a46 | (0, 0) | -1 | False | [0.0, 0.15, 0.02, 0.15, -0.77, 3]
+INFO:root:9b007...872e6 | (0, 1) | -1 | False | [41.5, 20.3, 98.92, 58.83, 92.9, 495]
+INFO:root:b55eb...ff67d | (1, 0) | -1 | False | [104.96, 105.2, 104.91, 105.02, 104.55, 99]
+INFO:root:f61bf...06ed8 | (0, 1) | -1 | False | [40, 21.47, 111.8, -0.05, 80.7, 99]
+INFO:root:8b161...3375c | (-1, 0) | -1 | False | [106.87, 106.87, 115.62, 118.85, 118.64, 32]
+INFO:root:2b1ff...7280f | (0, -1) | -1 | False | [126.29, -0.88, -1.05, -0.93, -0.2, 32]
+INFO:root:0048c...d4e0b | (0, -1) | 134 | True | [134, 0.62, -0.36, -0.2, -0.13, 8]
+INFO:root:0c6e0...c2a46 | (0, 0) | -1 | False | [0.0, 0.15, 0.02, 0.15, 0.02, 2]
+INFO:root:0c6e0...c2a46 | (0, 0) | -1 | False | [0.0, 0.15, 0.02, 0.15, -0.77, 3]
 INFO:root:Writing to myTable10Turns - 1114 - 9
 ```
 
@@ -443,28 +443,28 @@ Next we run it with EPSILON set to 0.5 so we make every second move random, for 
 
 
 ```
-INFO:root:9b0079371c6eb59f6e62f19ffa83a63dce1ce106151c043eef0872e6 | (0, 1) | -1 | False | [52.67, 46.43, 187.3, 58.9, 176.84, 714]
-INFO:root:b55eb3a45d9df8de37b421466c6d29e5254cbad560e519d8df3ff67d | (0, 1) | -1 | False | [197.35, 198.16, 198.21, 198.2, 198.21, 234]
-INFO:root:f61bf7d28aef9f2861be435d460631597a94ca22b4e7992507d06ed8 | (0, 1) | -1 | False | [40, 29.35, 209.69, 11.57, 106.34, 234]
-INFO:root:8b161eba010fb0d51c6568111b286d6aef77cf03440cbfc5f113375c | (0, -1) | -1 | False | [221.78, 173.23, 211.46, 221.77, 221.29, 117]
-INFO:root:2b1ff6ea3b9e171b1416e7e12c492a87ea90743881044886d5e7280f | (0, 0) | -1 | False | [144.29, -1.38, -1.14, -1.08, 234.5, 117]
-INFO:root:abd985e71a0ba0235f4346ff3914fb6a0bc37a10b504f1cea08d1b95 | (0, -1) | -1 | False | [247.9, 0.04, -0.06, -0.61, -0.04, 20]
-INFO:root:328a0685d0f5490749cd649511d1c4f752f321bfbe2e80c0ae40e63d | (0, -1) | 262 | True | [262, -0.18, -0.17, -0.13, 0.6, 13]
-INFO:root:9e266f7a9b4d32bb6623e8c383e097c6094523ba68ac180eacdda1ac | (0, 1) | -1 | False | [-0.19, -0.11, -0.1, -0.1, -0.23, 9]
+INFO:root:9b007...872e6 | (0, 1) | -1 | False | [52.67, 46.43, 187.3, 58.9, 176.84, 714]
+INFO:root:b55eb...ff67d | (0, 1) | -1 | False | [197.35, 198.16, 198.21, 198.2, 198.21, 234]
+INFO:root:f61bf...06ed8 | (0, 1) | -1 | False | [40, 29.35, 209.69, 11.57, 106.34, 234]
+INFO:root:8b161...3375c | (0, -1) | -1 | False | [221.78, 173.23, 211.46, 221.77, 221.29, 117]
+INFO:root:2b1ff...7280f | (0, 0) | -1 | False | [144.29, -1.38, -1.14, -1.08, 234.5, 117]
+INFO:root:abd98...d1b95 | (0, -1) | -1 | False | [247.9, 0.04, -0.06, -0.61, -0.04, 20]
+INFO:root:328a0...0e63d | (0, -1) | 262 | True | [262, -0.18, -0.17, -0.13, 0.6, 13]
+INFO:root:9e266...da1ac | (0, 1) | -1 | False | [-0.19, -0.11, -0.1, -0.1, -0.23, 9]
 INFO:root:Writing to myTable10Turns - 1398 - 9
 ```
 
 then we run it another 100 episodes with EPSILON 0.1
 
 ```
-INFO:root:9b0079371c6eb59f6e62f19ffa83a63dce1ce106151c043eef0872e6 | (0, 1) | -1 | False | [52.67, 49.2, 209.05, 58.9, 197.58, 856]
-INFO:root:b55eb3a45d9df8de37b421466c6d29e5254cbad560e519d8df3ff67d | (0, 1) | -1 | False | [218.73, 218.82, 221.11, 198.21, 218.82, 367]
-INFO:root:f61bf7d28aef9f2861be435d460631597a94ca22b4e7992507d06ed8 | (0, 1) | -1 | False | [40, 34.76, 233.8, 41.93, 106.34, 367]
-INFO:root:8b161eba010fb0d51c6568111b286d6aef77cf03440cbfc5f113375c | (0, 1) | -1 | False | [244.65, 216.92, 247.16, 247.13, 244.62, 243]
-INFO:root:2b1ff6ea3b9e171b1416e7e12c492a87ea90743881044886d5e7280f | (0, 0) | -1 | False | [144.29, -1.41, -1.14, 93.91, 261.22, 243]
-INFO:root:abd985e71a0ba0235f4346ff3914fb6a0bc37a10b504f1cea08d1b95 | (0, -1) | -1 | False | [276.02, -0.86, -0.06, -0.64, -0.24, 139]
-INFO:root:328a0685d0f5490749cd649511d1c4f752f321bfbe2e80c0ae40e63d | (0, 0) | -1 | False | [262, -0.79, -0.91, -0.16, 291.6, 125]
-INFO:root:12a62722a74c4ab2127e39c922e73679d82cbfa6f830d4b78a8a5aa3 | (0, -1) | 308 | True | [308, -0.01, -0.2, -0.18, -0.07, 59]
+INFO:root:9b007...872e6 | (0, 1) | -1 | False | [52.67, 49.2, 209.05, 58.9, 197.58, 856]
+INFO:root:b55eb...ff67d | (0, 1) | -1 | False | [218.73, 218.82, 221.11, 198.21, 218.82, 367]
+INFO:root:f61bf...06ed8 | (0, 1) | -1 | False | [40, 34.76, 233.8, 41.93, 106.34, 367]
+INFO:root:8b161...3375c | (0, 1) | -1 | False | [244.65, 216.92, 247.16, 247.13, 244.62, 243]
+INFO:root:2b1ff...7280f | (0, 0) | -1 | False | [144.29, -1.41, -1.14, 93.91, 261.22, 243]
+INFO:root:abd98...d1b95 | (0, -1) | -1 | False | [276.02, -0.86, -0.06, -0.64, -0.24, 139]
+INFO:root:328a0...0e63d | (0, 0) | -1 | False | [262, -0.79, -0.91, -0.16, 291.6, 125]
+INFO:root:12a62...a5aa3 | (0, -1) | 308 | True | [308, -0.01, -0.2, -0.18, -0.07, 59]
 INFO:root:Writing to myTable10Turns - 1441 - 9
 ```
 
@@ -474,14 +474,14 @@ The bot moved down twice and up twice. (if you just add the tuples you would oth
 Fixing these issues and letting it run for ~20k random walks we find the perfect solution.
 
 ```
-INFO:root:314a169275c037ea227f7b7dc6764112e32fcbc0739d4df1a157a9a0 | (-1, 0) | -1 | False | [135.73, 129.44, 187.3, 283.08, -1, 19148]
-INFO:root:e2d6942c8c5913d816544441f5328b24e4a14c4fdab06cc7168b8d1f | (0, 0) | -1 | False | [0.91, 0.81, 0.22, 0.17, 299.03, 4461]
-INFO:root:cbc967432cbba0ad7cb97a413092e0e92b6278831a605904073b0c1a | (-1, 0) | -1 | False | [91.4, 25, 91.37, 315.82, 251.6, 4461]
-INFO:root:c75fab8f9dd5497724c8e5c254ae964eada241d07bb0fd70b68d1d96 | (0, 0) | -1 | False | [0.33, 0.23, 0.92, 0.52, 333.5, 1492]
-INFO:root:ab6f37d146ce90e61fb87e1824f4708a7dfe99834af5353736b50ed6 | (0, 0) | -1 | False | [96.6, 165.21, 100.04, 68.31, 352.1, 1492]
-INFO:root:41f401d20debb2d0669f206ff8b727af60a138799bda0e3e7682278b | (0, 0) | -1 | False | [-2.85, 296.77, -2.85, -2.85, 371.68, 757]
-INFO:root:f76dd0f64beb8aa534c4de8672f8bf7cb5c2ee22c18b264ce01049a9 | (1, 0) | -1 | False | [-1.95, 392.3, -1.95, -1.95, -1.95, 558]
-INFO:root:42f66d0cd8cce668ad144aef3f8abe9dc37b5f92caef65aa5f3674a1 | (1, 0) | 414 | True | [-1, 414, -1, -1, -1, 438]
+INFO:root:314a1...7a9a0 | (-1, 0) | -1 | False | [135.73, 129.44, 187.3, 283.08, -1, 19148]
+INFO:root:e2d69...b8d1f | (0, 0) | -1 | False | [0.91, 0.81, 0.22, 0.17, 299.03, 4461]
+INFO:root:cbc96...b0c1a | (-1, 0) | -1 | False | [91.4, 25, 91.37, 315.82, 251.6, 4461]
+INFO:root:c75fa...d1d96 | (0, 0) | -1 | False | [0.33, 0.23, 0.92, 0.52, 333.5, 1492]
+INFO:root:ab6f3...50ed6 | (0, 0) | -1 | False | [96.6, 165.21, 100.04, 68.31, 352.1, 1492]
+INFO:root:41f40...2278b | (0, 0) | -1 | False | [-2.85, 296.77, -2.85, -2.85, 371.68, 757]
+INFO:root:f76dd...049a9 | (1, 0) | -1 | False | [-1.95, 392.3, -1.95, -1.95, -1.95, 558]
+INFO:root:42f66...674a1 | (1, 0) | 414 | True | [-1, 414, -1, -1, -1, 438]
 INFO:root:Writing to myTableConditionedOnTurnS - 10859 - 9
 ```
 ![QTableBot](https://user-images.githubusercontent.com/1778723/72352937-7a90af80-36e3-11ea-82d3-cb3664c7d08e.gif)
