@@ -32,10 +32,10 @@ def create_state_array(game_map, ship):
 if os.path.exists(TABLE):
     logging.info(f"Loading {TABLE}")
     with open(TABLE, 'rb') as f:
-        table = json.loads(f.read())
+        q_table = json.loads(f.read())
 else:
     logging.info(f"Initializing {TABLE}")
-    table = {}
+    q_table = {}
 
 states = []
 action_indices = []
@@ -50,7 +50,7 @@ POSSIBLE_MOVES = [Direction.North, Direction.East, Direction.South, Direction.We
 def state2key(state):
     return hashlib.sha224(f"{state.tostring()}".encode("UTF-8")).hexdigest() 
 
-def lookup_table(table, state):
+def lookup_q_table(table, state):
     return table.setdefault(state2key(state), list(np.random.uniform(0, 1, len(POSSIBLE_MOVES)))+[0])
 
 
@@ -89,7 +89,7 @@ while True:
             elif random.random() < EPSILON:
                 move = random.choice(POSSIBLE_MOVES)
             else:
-                current_q = lookup_table(table, state)
+                current_q = lookup_q_table(q_table, state)
                 move_index = np.argmax(current_q[:-1])
                 move = POSSIBLE_MOVES[move_index]
 
@@ -104,9 +104,10 @@ while True:
     if game.turn_number == constants.MAX_TURNS:
         dones[-1]=True
         # logging.info(f"{len(states)} - {len(action_indices)} - {len(rewards)} - {len(dones)}")
+        total_reward = 0
         for state, next_state, action_index, reward, done in zip(states, states[1:], action_indices, rewards, dones):
-            current_q = lookup_table(table, state)
-            future_q = lookup_table(table, next_state)
+            current_q = lookup_q_table(q_table, state)
+            future_q = lookup_q_table(q_table, next_state)
 
             if done:
                 current_q[action_index] = reward
@@ -115,12 +116,14 @@ while True:
 
             current_q[-1] += 1
 
-            table[state2key(state)] = current_q
+            q_table[state2key(state)] = current_q
+
+            total_reward+=reward if reward>0 else 0
 
             logging.info(f"{state2key(state)} | {POSSIBLE_MOVES[action_index]} | {reward} | {done} | {[round(x, 2) for x in current_q]}")
 
-        logging.info(f"Writing to {TABLE} - {len(table)} - {len(states)}")
-        with open(TABLE, 'w') as f:
-            f.write(json.dumps(table))
+        logging.info(f"Writing to {TABLE} - {len(q_table)} - {len(states)} - {total_reward}")
+        with open(TABLE, 'wb') as f:
+            f.write(json.dumps(q_table))
 
     game.end_turn(command_queue)

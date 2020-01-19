@@ -4,23 +4,26 @@
 Its a competition where you implement the behavior of bots to collect resources.
 
 The key rules of the game are:
-* You start with 5000 resource in your "bank" and can build ships in your main base. 
-* A ship costs 1000 resource and can either move up, down, left, right, collect resource or build a depot.
-* Ships can move around the playfield and collect resource that they need to drop off at either your main base or a depot
-* Moving around costs 10% of the resource on a given field
-* Collecting resource takes one turn and collects 25% of the resource on the given field
-* Building another depot (to reduce travel times) costs 4000 resource
-* Winner is whoever has most resource in the bank at the end of all turns
+* Each player starts with 5000 resources in their "bank" and can build ships in your main base. 
+* A ship costs 1000 resources and can either move up, down, left, right, collect resources or build a depot.
+* Ships can move around the playfield and collect resources that they need to drop off at either your main base or a depot
+* Moving around costs 10% of the resources on a given field
+* Collecting resources takes one turn and collects 25% of the resources on the given field
+* Building another depot (to reduce travel times) costs 4000 resources
+* Winner is whoever has most resources in the bank at the end of all turns
+* Only one ship can be on a field on any given time. If two ships move to the same field, they will sink and drop their resource back onto that field.
 
 As you can see there is quite some complexity to the game. For this tutorial(series) I want to focus on building a reinforcement learning framework that focuses on moving ships, and collecting resources, maybe even decide when and how many ships to build but the first part is already complex enough.
 
 Checkout the page of the competiton above for more details about the rules.
 
+![example game](https://user-images.githubusercontent.com/1778723/72680785-25c3af00-3abe-11ea-909d-109d440b0fde.gif)
+
 Back when the competiton was on I first build a rule based bot which if I remember correctly eneded up in the top 200. Towards the end of the competition I got inspired by a YouTuber called [sentdex](https://www.youtube.com/sentdex) who got me into the competition in the first place.
 Also a really good reference on how to encode the game into a neural network is the writeup of [Joshua Staker](https://stakernotes.com/).
 
 He tried to apply neural networks aswell starting from a random bot which would learn by playing itself over and over again.
-I am not sure his efforts lead to a final version which did things but it was really hard to model anything since there is a lot of noise in just random games. Things like prioritizing big chunks of resource vs small ones and venturing further for bigger reward are hard to model since a random walk is most likely never going to return to the base again to hand it off.
+I am not sure his efforts lead to a final version which did things but it was really hard to model anything since there is a lot of noise in just random games. Things like prioritizing big chunks of resources vs small ones and venturing further for bigger reward are hard to model since a random walk is most likely never going to return to the base again to hand it off.
 
 I then started to download the replays of the top players and tried to learn them using neural networks and various approaches but it never lead to anything. I also tried some Deep Q-Learning tutorials back then and got the ships to not run into each other all the time and collect a small amount of halite. This was a lot of fudging everything together and somehow changing the reward function mid training depending on which issues the current bot had (e.g. just not crashing ships is good).
 
@@ -80,9 +83,9 @@ while True:
 ```
 
 So this bot moves random if the ship is reasonably full or collects halite if it is not.
-It also spawns new ships in the first 200 turns.
+It also spawns new ships in the first 200 turns. Most of them will crash into each other and sink since they all move randomly around and there is no collision detection implemented. 
 
-We will use this bot as a baseline.
+We will use this bot as a baseline. Mainly in the case where we only build one ship and see if we can learn resource collection but also later on where our network will learn to build ships by itself and move them around hopefully without crashing them.
 
 # Q-Tables
 
@@ -106,8 +109,8 @@ I modelled it as a `6 x size x size`  where `size` is the size of the playfield 
 
 My 6 features are:
 
-1. The amount of resource on the field
-2. Whether there is a own ship on this field or not (modelled as a proportion of how much resource the ship is carrying)
+1. The amount of resources on the field
+2. Whether there is a own ship on this field or not (modelled as a proportion of how much resources the ship is carrying)
 3. Whether there is a enemy ship on this field (also modelled as a proportion)
 4. Whether there is a own base on this field (boolean)
 5. Whether there is a enemy base on this field (boolean)
@@ -132,11 +135,24 @@ def create_state_array(game_map, ship):
 ```
 
 Later we will feed this matrix into the neural network but for now we will use this to represent the state for our Q-Table.
-I felt the easiest way to build such a table would be a dictionart of the above features to the array containing the expected reward for each action.
+I felt the easiest way to build such a table would be a dictionary of the above features to the array containing the expected reward for each action.
 Since storing all the information above would bloat up the table significantly I though I can probably get around it by hashing the information above.
 
 In our case, we also don't want to enumerate each possible state and initialize the table so we will do a lazy initialization. 
 This means if we try to lookup a key in our table that is not there we will just initialize a random array instead.
+
+## Making a move
+
+Usually we would want to make moves based on our table, and always take the move that promises the highest reward.
+Initially the table is filled with random numbers and we don't know which move is the best. 
+To actually explore the state space usually random moves are initially chosen to have your agent/ships move around and see which actions trigger which rewards.
+We then have a exploration (random moves) vs exploitation (follow the most promising  move) problem because we need to decide how long and many random moves we should make. Also random moves may not explore the whole game state since it is for example unlikely that our ship will randomly move to a tile which is 10 moves away, collect the resources there and bring them back, even though this may be the best moves to make.
+In our case we will steer this manually with a parameter called `EPSILON`. It denotes the proportion of times we make random moves vs how often we follow what our table says is best.
+In the Q-Table case we will pass this parameter to our bot manually
+
+We will also pass the path to our table file which the bot should load to lookup and store the learned values.
+
+Lets go through the code needed bit by bit:
 
 ```Python
 import os
@@ -149,21 +165,17 @@ TABLE = sys.argv[2]
 if os.path.exists(TABLE):
     logging.info(f"Loading {TABLE}")
     with open(TABLE, 'rb') as f:
-        table = json.loads(f.read())
+        q_table = json.loads(f.read())
 else:
     logging.info(f"Initializing {TABLE}")
-    table = {}
+    q_table = {}
 
 ...
 ```
 
-## Making a move
+This is just the code to load the table and initialize the `EPSILON` from stdin. I chose to write the table as a json file even though this will be very slow for large tables and lateron we may want to switch this to pickle or some other way of loading/training/looking up the table altogether.
 
-To decide which move we want to make, we now depending on the EPSILON parameter specified either chose a random move or 
-we lookup the most promising move according to our table. If the table does not contain the current game state we will
-insert an array with random numbers between 0 and 1.
-
-Lets go through the code needed bit by bit:
+Next we need to decide how to store the values in the table
 
 ```python
 POSSIBLE_MOVES = [Direction.North, Direction.East, Direction.South, Direction.West, Direction.Still]
@@ -171,8 +183,11 @@ POSSIBLE_MOVES = [Direction.North, Direction.East, Direction.South, Direction.We
 def state2key(state):
     return hashlib.sha224(f"{state.tostring()}".encode("UTF-8")).hexdigest() 
 
-def lookup_table(table, state):
-    return table.setdefault(state2key(state), list(np.random.uniform(0, 1, len(POSSIBLE_MOVES))))
+def lookup_q_table(q_table, state):
+    key = state2key(state)
+    if not key in q_table:
+        q_table[key] = list(np.random.uniform(0, 1, len(POSSIBLE_MOVES)))
+    return q_table[key]
 ...
 while True:
 ```
@@ -189,7 +204,7 @@ Next lets look at how we decide where to move:
             move = random.choice(POSSIBLE_MOVES)
         else:
             state = create_state_array(game_map, ship)
-            current_q = lookup_table(table, state)
+            current_q = lookup_q_table(q_table, state)
             move_index = np.argmax(current_q)
             move = POSSIBLE_MOVES[move_index]
         command_queue.append(ship.move(move))
@@ -215,13 +230,12 @@ shipid2shipandcell = {}
 while True:
 ...
      for ship in me.get_ships():
-            move = random.choice([ Direction.North, Direction.South, Direction.East, Direction.West ])
             state = create_state_array(game_map, ship)
             states.append(state)
             if random.random() < EPSILON:
                 move = random.choice(POSSIBLE_MOVES)
             else:
-                current_q = lookup_table(table, state)
+                current_q = lookup_q_table(q_table, state)
                 move_index = np.argmax(current_q)
                 move = POSSIBLE_MOVES[move_index]
 
@@ -233,8 +247,8 @@ while True:
 
 ```
 The arrays are used to store the various things we need. People familiar with the openAI gym will recognize these.
-Then we have to slightly adjust our move function again to make sture we store the state and chosen move during each iteration
-The `shipid2shipandcell` variable is used to store the current ship halite amount and the halite of the current cell of this ship
+Then we have to slightly adjust our move function again to make sture we store the state and chosen move during each iteration.
+The `shipid2shipandcell` variable is used to store the current ship halite amount and the halite of the current cell of this ship.
 Once we implenent our reward function we will see why we need this helper. You can ignore this for now.
 
 ### Modelling Reward
@@ -247,7 +261,7 @@ If you want to dive into more detail about reward modelling and the research her
 
 The simplest way of defining rewards would be to have three distinct cases.
 
-1. The ship is bringing resource to a base hence increasing our bank (reward = amount of resource banked)
+1. The ship is bringing resources to a base hence increasing our bank (reward = amount of resources banked)
 2. The ship is crashing with another ship (reward = -1000, this is the cost of a ship, we could increase this)
 3. The ship is doing anything else (reward = -1)
 
@@ -310,15 +324,15 @@ In code it looks like this:
 ```python
     if game.turn_number == constants.MAX_TURNS:
         for state, next_state, action_index, reward, done in zip(states, states[1:], action_indices, rewards, dones):
-            current_q = lookup_table(table, state)
-            future_q = lookup_table(table, next_state)
+            current_q = lookup_q_table(q_table, state)
+            future_q = lookup_q_table(q_table, next_state)
 
             if done:
                 current_q[action_index] = reward
             else:
                 current_q[action_index] = LEARNING_RATE * current_q[action_index] + (1 - LEARNING_RATE) * (reward + DISCOUNT * np.max(future_q))
 
-            table[state2key(state)] = current_q
+            q_table[state2key(state)] = current_q
 
             logging.info(f"{state2key(state)} | {POSSIBLE_MOVES[action_index]} | {reward} | {done} | {[round(x, 2) for x in current_q]}")
 ```
@@ -331,9 +345,9 @@ The last line is adding some logging so we can get a glimpse of how it will look
 Last we need to write the table to disk to store the state:
 
 ```python
-        logging.info(f"Writing to {TABLE} - {len(table)} - {len(states)}")
+        logging.info(f"Writing to {TABLE} - {len(q_table)} - {len(states)}")
         with open(TABLE, 'w') as f:
-            f.write(json.dumps(table))
+            f.write(json.dumps(q_table))
 
     game.end_turn(command_queue)
 ```
@@ -468,7 +482,7 @@ INFO:root:12a62...a5aa3 | (0, -1) | 308 | True | [308, -0.01, -0.2, -0.18, -0.07
 INFO:root:Writing to myTable10Turns - 1441 - 9
 ```
 
-We can see how it converged from 143 to 262 to finally 308 resource collected, looking at the movement pattern it seems like the bot only collected resource twice which seems strange. By comparing this with the replay I found that if a bot cannot move because it cannot pay the fuel cost to move it will default to standing still, which in our case attributes the reward slightly wrong. the second and fourth move in the list were actually stand stills.
+We can see how it converged from 143 to 262 to finally 308 resources collected, looking at the movement pattern it seems like the bot only collected resources twice which seems strange. By comparing this with the replay I found that if a bot cannot move because it cannot pay the fuel cost to move it will default to standing still, which in our case attributes the reward slightly wrong. the second and fourth move in the list were actually stand stills.
 The bot moved down twice and up twice. (if you just add the tuples you would otherwise not end up at the orignal place when the bot says its done)
 
 Fixing these issues and letting it run for ~20k random walks we find the perfect solution.
@@ -494,7 +508,7 @@ And while this is true for the example that I showed here it all depends on how 
 Can we somehow encode the state of the game in a different way that helps us generalize better being able to reuse the state for many ships and many situations?
 A couple of ideas that pop to my mind are:
 
-* Bucket/binning of the resoruces in each field, since each change in resource on a field changes our state, we could round/bucket the resource amount to the nearest 5,10 or 50, so collecting resource on a field would not always change its value
+* Bucket/binning of the resoruces in each field, since each change in resources on a field changes our state, we could round/bucket the resources amount to the nearest 5,10 or 50, so collecting resources on a field would not always change its value
 * Center the state "map" around the ship itself instead of making it a global state of the map, so each ship would see itself as the center of the universe
 * Have a smaller area around the ship where we have full resolution of the game map and aggregate everything further away, e.g. on a 16x16 map we could have a ship that sees a 4x4 surrounding
 * Use neural networks and just generalize over all of that and don't bother with the "rigidness" of the problem but open up a whole other can of worms.
