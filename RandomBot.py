@@ -28,7 +28,8 @@ while True:
         else:
             command_queue.append(ship.stay_still())
 
-    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    #if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if len(me.get_ships())<1:
         command_queue.append(me.shipyard.spawn())
 
     game.end_turn(command_queue)

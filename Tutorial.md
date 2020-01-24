@@ -35,7 +35,7 @@ For this I tried...
 * making the game map smaller.
 * only running the game for 8 or 50 turns instead of the usual 400, since if we can't find the best solution for a 8 turn game we will never model the 400 turn solution.
 * only building one ship instead of multiples so crashing is not an issue.
-* smaller and shallow networks as opposed to big deep networks or complicated architectures eventually even falling back to Q-Tables and trying to store all states of a small map with only 8 turns and one ship.
+* smaller and shallow networks as opposed to big deep networks or complicated architectures eventually even falling back to Q-Learning and trying to store all states of a small map with only 8 turns and one ship.
 
 This will be the written step by step tutorial including results that I think are worth sharing.
 Also this will be one of the rather few examples that does not use `Gym` or some other library that wraps the complexity of the game behind something that returns a nice state and reward and action representation. So far not many tutorials talk about it but I find making decisions on how to structure these things are not at all trivial and just implenenting a DQN that can learn cartpole is in my opinion good for learning the general algorithms but leaves me with very little knowledge on how to apply Reinforcement Learning in the real world.
@@ -87,15 +87,15 @@ It also spawns new ships in the first 200 turns. Most of them will crash into ea
 
 We will use this bot as a baseline. Mainly in the case where we only build one ship and see if we can learn resource collection but also later on where our network will learn to build ships by itself and move them around hopefully without crashing them.
 
-# Q-Tables
+# Q-Learning
 
-I did not first try Q-Tables but after playing around a lot with Deep Q-learning and nothing working I decided to make the problem simpler and simpler until I can get an Idea of whats happening.
-This then helped me actually find a couple of bugs in my code which after fixing them let me progress with my neural networks so I want to show this even though we will not be able to do a lot with Q-Tables and this game.
+I did not first try Q-Learning but after playing around a lot with Deep Q-Learning and nothing working I decided to make the problem simpler and simpler until I can get an Idea of whats happening.
+This then helped me actually find a couple of bugs in my code which after fixing them let me progress with my neural networks so I want to show this even though we will not be able to do a lot with Q-Learning and this game.
 
-Generally Q-Tables is just a way to store each possible state of the game and the expected rewards for every possible action from that state.
+Generally Q-Learning is just a way to store each possible state of the game and the expected rewards for every possible action from that state.
 Inititally you just randomly initialize the table and take random actions checking which rewards you get updating your table and your actions along the way.
 
-If you want to get a good idea of what Q-Tables are just google around there is plenty of pretty good medium posts and other resources, I just want to list a couple
+If you want to get a good idea of what Q-Learning are just google around there is plenty of pretty good medium posts and other resources, I just want to list a couple
 
 * Again a shoutout to sentdex for his video [Q Learning Intro/Table - Reinforcement Learning p.1](https://www.youtube.com/watch?v=yMk_XtIEzH8)
 * Also Arthur Juliani for his series on [Simple Reinforcement Learning with Tensorflow Part 0: Q-Learning with Tables and Neural Networks](https://medium.com/emergent-future/simple-reinforcement-learning-with-tensorflow-part-0-q-learning-with-tables-and-neural-networks-d195264329d0)
@@ -104,36 +104,50 @@ Again thers is plenty other really good resources out there.
 
 ## Representing State
 
-Since I first did neural networks and then q-tables I reused the features from the neural networks to represent the state in my q-tables aswell.
-I modelled it as a `6 x size x size`  where `size` is the size of the playfield e.g. 32 (then it would be a 6x32x32 matrix)
+In order to store the state in a table to use Q-Learning we need to think about how we want to represent our game.
+Since I first did neural networks and then Q-Learning I reused the features from the neural networks to represent the state in my Q-Learning aswell.
+There is multiple ways on how to do this. The way I saw it in [sentdex's](https://www.youtube.com/watch?v=1niezMc2kpM&list=PLQVvvaa0QuDcJe7DPD0I5J-EDKomQDKsz&index=7) video is to build a matrix centered round each ship, where multiple layers contain the resources, the ships and structures etc. 
+
+
+While doing this initially I found that it seems to be hard for a network to learn not to run into other ships. Even though it predicts each ship it can't really imagine how to the world of the other ships look like and which moves they want to do.
+
+While reading up on multi agent learning I found this medium post [A Simple Approach to Multi-Agent Deep Reinforcement Learning
+ by Shyam](https://medium.com/@schoudharypub/a-simple-approach-to-multi-agent-deep-reinforcement-learning-db719bb1e63cF) in which he explains a paper that found that representing one global view on the game and telling the network which agent is currently being predicted in a separate feature layer seems to work well for multi agent settings.
+
+ Also [Joshua Staker](https://stakernotes.com/diamond-ranked-ml-for-halite3/) the winning ML bot in this competition modeled one global matrix centered around the main shipyard. His network actually calculated for each cell on the board which move should be taken. During training he just masked all the fields that did not contain a ship so that it only propagated the error of the fields that actually contained a ship. It is also important to note that he did a supervised learning approach, learning the top three rule based bots behaviors.
+
+While we will explore various versions of the above mentioned approaches for the Q-Learning I modelled it as a `6 x size x size`  where `size` is the size of the playfield e.g. 32 (then it would be a 6x32x32 matrix)
 
 My 6 features are:
 
 1. The amount of resources on the field
-2. Whether there is a own ship on this field or not (modelled as a proportion of how much resources the ship is carrying)
-3. Whether there is a enemy ship on this field (also modelled as a proportion)
-4. Whether there is a own base on this field (boolean)
-5. Whether there is a enemy base on this field (boolean)
-6. One hot encoded matrix of the ship that is currently to decide the move
+2. Whether there is a ship on this field (1 for owned and -1 for enemy)
+3. The amount of resource carried by each ship
+4. Whether there is structure on this field (1 for owned and -1 for enemy)
+5. One hot encoded matrix of the ship that is currently to decide the move
 
 Here is the code
 
 ```Python
 def create_state_array(game_map, ship):
-    state = np.zeros((6, game_map.width, game_map.height))
+    state = np.zeros((5, game_map.width, game_map.height))
     for cell in game_map.cells:
         state[0, cell.position.x, cell.position.y] = cell.halite_amount/1000.0
 
-        state[1, cell.position.x, cell.position.y] = (cell.ship.halite_amount+1)/1001 if cell.is_occupied and cell.ship.owner == ship.owner else 0
-        state[2, cell.position.x, cell.position.y] = (cell.ship.halite_amount+1)/1001 if cell.is_occupied and not cell.ship.owner == ship.owner else 0
+        if cell.is_occupied:
+            state[1, cell.position.x, cell.position.y] = 1 if cell.ship.owner == ship.owner else -1
+            state[2, cell.position.x, cell.position.y] = (cell.ship.halite_amount)/1000.0
 
-        state[3, cell.position.x, cell.position.y] = 1 if cell.has_structure and cell.structure.owner == ship.owner else 0
-        state[4, cell.position.x, cell.position.y] = 1 if cell.has_structure and not cell.structure.owner == ship.owner else 0
+        if cell.has_structure:
+            state[3, cell.position.x, cell.position.y] = 1 if cell.structure.owner == ship.owner else -1
 
-    state[5, ship.position.x, ship.position.y] = 1
+    state[4, ship.position.x, ship.position.y] = 1
     return state
 ```
+With my non existing imaging skills I plotted the features like this:
+![featureimage](https://user-images.githubusercontent.com/1778723/73065131-11f3c080-3ea3-11ea-8602-ce8832aa7b62.png)
 
+I have no idea whether using separate layers for the own and enemy ships has any advantage or not.
 Later we will feed this matrix into the neural network but for now we will use this to represent the state for our Q-Table.
 I felt the easiest way to build such a table would be a dictionary of the above features to the array containing the expected reward for each action.
 Since storing all the information above would bloat up the table significantly I though I can probably get around it by hashing the information above.
@@ -309,7 +323,7 @@ the following code goes below the for loop for deciding the moves for each ship:
         command_queue.append(me.shipyard.spawn())
 ```
 In our Q-Table version we only build one ship for now, to reduce the state space as much as possible.
-The formular for updating the Q-table is:
+The formular for updating the Q-Table is:
 
 ![equation](https://latex.codecogs.com/gif.latex?%5Cinline%20Q_t%20%3D%20l*Q_t&plus;%281-l%29*%28r&plus;d*%5Carg%5C%21%5Cmax%20Q_%7Bt&plus;1%7D%29)
 
@@ -514,5 +528,27 @@ A couple of ideas that pop to my mind are:
 * Use neural networks and just generalize over all of that and don't bother with the "rigidness" of the problem but open up a whole other can of worms.
 
 The latter is what we will do next :)
+
+# Deep Q-Learning
+
+In this section we will reuse some of the code we used to train our Q-Table and basically replay the table with a neural network instead. 
+The network will take the current state of our environment and estimate the Q-values for each action.
+
+Again there is multiple good resources about Deep Q Learning on medium and others:
+
+In the beginning I will specifically follow
+[An introduction to Deep Q-Learning: let’s play Doom by Thomas Simoni](https://www.freecodecamp.org/news/an-introduction-to-deep-q-learning-lets-play-doom-54d02d8017d8/)
+and use a similar implementation to train our agent. 
+
+We will start this series in the following order:
+
+1. Train a network that can collect resources with a single ship on same map (prove that it works)
+2. Train a network that can collect resources with a single ship on different maps (see if we can generalize)
+3. Train a network that can collect resources with multiple ships on different maps (see if we can learn multiple "agents")
+4. Incorporate the building of ships and potential building of bases into our network
+
+I think while doing this we will also try/incorporate multiple improvements to the vanilla deep learning agent.
+We will probably try different approaches like using openAI Proximal Policy Optimization algorithm instead of the standart loss.
+And see where we end up.
 
 

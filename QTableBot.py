@@ -19,19 +19,26 @@ game = hlt.Game()
 game.ready(f"{EPSILON}-{TABLE}")
 
 def create_state_array(game_map, ship):
-    state = np.zeros((4, game_map.width, game_map.height))
+    state = np.zeros((5, game_map.width, game_map.height))
     for rows in game_map._cells:
         for cell in rows:
-            state[0, cell.position.x, cell.position.y] = round(cell.halite_amount/1000.0, 2)
-            state[1, cell.position.x, cell.position.y] = round((cell.ship.halite_amount+1)/1001, 2) if cell.is_occupied and cell.ship.owner == ship.owner else 0
-            state[2, cell.position.x, cell.position.y] = 1 if cell.has_structure and cell.structure.owner == ship.owner else 0
-    state[3, ship.position.x, ship.position.y] = 1
+            state[0, cell.position.y, cell.position.x] = cell.halite_amount/1000.0
+
+            if cell.is_occupied:
+                state[1, cell.position.y, cell.position.x] = 1 if cell.ship.owner == ship.owner else -1
+                state[2, cell.position.y, cell.position.x] = (cell.ship.halite_amount)/1000.0
+
+            if cell.has_structure:
+                state[3, cell.position.y, cell.position.x] = 1 if cell.structure.owner == ship.owner else -1
+
+    state[4, ship.position.y, ship.position.x] = 1
     return state
+
 
 
 if os.path.exists(TABLE):
     logging.info(f"Loading {TABLE}")
-    with open(TABLE, 'rb') as f:
+    with open(TABLE, 'r') as f:
         q_table = json.loads(f.read())
 else:
     logging.info(f"Initializing {TABLE}")
@@ -82,7 +89,7 @@ while True:
     shipid2shipandcell = {}
             
     for ship in me.get_ships():
-            state = create_state_array(game, ship)
+            state = create_state_array(game_map, ship)
             states.append(state)
             if ship.halite_amount < game_map[ship.position].halite_amount * 0.1:
                 move = Direction.Still # can't move anyway
@@ -123,7 +130,7 @@ while True:
             logging.info(f"{state2key(state)} | {POSSIBLE_MOVES[action_index]} | {reward} | {done} | {[round(x, 2) for x in current_q]}")
 
         logging.info(f"Writing to {TABLE} - {len(q_table)} - {len(states)} - {total_reward}")
-        with open(TABLE, 'wb') as f:
+        with open(TABLE, 'w') as f:
             f.write(json.dumps(q_table))
 
     game.end_turn(command_queue)
