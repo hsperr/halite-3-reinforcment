@@ -8,15 +8,13 @@ import random
 import logging
 import sys
 import os
-import json
-import hashlib
 import numpy as np
 
 EPSILON = float(sys.argv[1])
-TABLE = sys.argv[2]
+MODELPATH = sys.argv[2]
 
 game = hlt.Game()
-game.ready(f"{EPSILON}-{TABLE}")
+game.ready(f"{EPSILON}-{MODELPATH}")
 
 def create_state_array(game_map, ship):
     state = np.zeros((5, game_map.width, game_map.height))
@@ -26,7 +24,7 @@ def create_state_array(game_map, ship):
 
             if cell.is_occupied:
                 state[1, cell.position.y, cell.position.x] = 1 if cell.ship.owner == ship.owner else -1
-                state[2, cell.position.y, cell.position.x] = (cell.ship.halite_amount)/1000.0
+                state[2, cell.position.y, cell.position.x] = cell.ship.halite_amount/1000.0
 
             if cell.has_structure:
                 state[3, cell.position.y, cell.position.x] = 1 if cell.structure.owner == ship.owner else -1
@@ -35,31 +33,21 @@ def create_state_array(game_map, ship):
     return state
 
 
+import tensorflow as tf
 
-if os.path.exists(TABLE):
-    logging.info(f"Loading {TABLE}")
-    with open(TABLE, 'r') as f:
-        q_table = json.loads(f.read())
+if os.path.exists(MODELPATH):
+    logging.info(f"Loading {MODELPATH}")
+    model = tf.keras.models.load_model(MODELPATH)
 else:
-    logging.info(f"Initializing {TABLE}")
-    q_table = {}
+    raise Exception(f"MODELPATH={MODELPATH} not found")
 
 states = []
 action_indices = []
 rewards = []
 dones = []
-
-LEARNING_RATE = 0.1
-DISCOUNT = 0.95
+current_qs = []
 
 POSSIBLE_MOVES = [Direction.North, Direction.East, Direction.South, Direction.West, Direction.Still]
-
-def state2key(state):
-    return hashlib.sha224(f"{state.tostring()}".encode("UTF-8")).hexdigest() 
-
-def lookup_q_table(table, state):
-    return table.setdefault(state2key(state), list(np.random.uniform(0, 1, len(POSSIBLE_MOVES)))+[0])
-
 
 logging.info("Successfully1 created bot! My Player ID is {}.".format(game.my_id))
 
@@ -93,13 +81,16 @@ while True:
             states.append(state)
             if ship.halite_amount < game_map[ship.position].halite_amount * 0.1:
                 move = Direction.Still # can't move anyway
+                current_q = "CANTMOVE"
             elif random.random() < EPSILON:
                 move = random.choice(POSSIBLE_MOVES)
+                current_q = "RANDOM"
             else:
-                current_q = lookup_q_table(q_table, state)
-                move_index = np.argmax(current_q[:-1])
+                current_q = model.predict(state)[0]
+                move_index = np.argmax(current_q)
                 move = POSSIBLE_MOVES[move_index]
 
+            current_qs.append(current_q)
             action_indices.append(POSSIBLE_MOVES.index(move))
             shipid2shipandcell[ship.id] = (ship.halite_amount, game_map[ship.position].halite_amount)
 
@@ -110,27 +101,13 @@ while True:
 
     if game.turn_number == constants.MAX_TURNS:
         dones[-1]=True
-        # logging.info(f"{len(states)} - {len(action_indices)} - {len(rewards)} - {len(dones)}")
         total_reward = 0
-        for state, next_state, action_index, reward, done in zip(states, states[1:], action_indices, rewards, dones):
-            current_q = lookup_q_table(q_table, state)
-            future_q = lookup_q_table(q_table, next_state)
+        for state, action_index, reward, done, current_q in zip(states, action_indices, rewards, dones, current_qs):
+            logging.info(f"{POSSIBLE_MOVES[action_index]} | {reward} | {done} | {[round(x, 2) for x in current_q]}")
 
-            if done:
-                current_q[action_index] = reward
-            else:
-                current_q[action_index] = LEARNING_RATE * current_q[action_index] + (1 - LEARNING_RATE) * (reward + DISCOUNT * np.max(future_q[:-1]))
+        total_reward+=sum(rewards)
+        logging.info(f"TotalReward={total_reward}")
 
-            current_q[-1] += 1
-
-            q_table[state2key(state)] = current_q
-
-            total_reward+=reward if reward>0 else 0
-
-            logging.info(f"{state2key(state)} | {POSSIBLE_MOVES[action_index]} | {reward} | {done} | {[round(x, 2) for x in current_q]}")
-
-        logging.info(f"Writing to {TABLE} - {len(q_table)} - {len(states)} - {total_reward}")
-        with open(TABLE, 'w') as f:
-            f.write(json.dumps(q_table))
+        np.savez(f"training/{MODELPATH}/", np.array(states, action_indices, rewards, dones))
 
     game.end_turn(command_queue)
