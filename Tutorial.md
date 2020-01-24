@@ -146,6 +146,9 @@ def create_state_array(game_map, ship):
 ```
 With my non existing imaging skills I plotted the features like this:
 ![featureimage](https://user-images.githubusercontent.com/1778723/73065131-11f3c080-3ea3-11ea-8602-ce8832aa7b62.png)
+*Top: real game, feature map for halite, ship positions*
+*Bottom: ship halite, base locations, current ship*
+
 
 I have no idea whether using separate layers for the own and enemy ships has any advantage or not.
 Later we will feed this matrix into the neural network but for now we will use this to represent the state for our Q-Table.
