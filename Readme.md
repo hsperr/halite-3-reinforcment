@@ -554,4 +554,16 @@ I think while doing this we will also try/incorporate multiple improvements to t
 We will probably try different approaches like using openAI Proximal Policy Optimization algorithm instead of the standart loss.
 And see where we end up.
 
+We will do all of this in a couple of separate steps.
+First we will copy and change our Q-Table bot to use a Neural Network instead of a Q-Table.
+The network path will be passed in. We will run a couple of games and store the resulting states in a numpy compressed file instead of training the network after each game.
+So we can collect more samples accross different games for training.
+
+For this we will create a file called `training.py` which will create a model if there is none, 
+run a couple of games. Train the model, and run another batch of games.
+
+
+```python
+
+```
 

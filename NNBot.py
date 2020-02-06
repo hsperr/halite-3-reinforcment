@@ -9,12 +9,21 @@ import logging
 import sys
 import os
 import numpy as np
+import time
 
 EPSILON = float(sys.argv[1])
-MODELPATH = sys.argv[2]
+MODEL_PATH = sys.argv[2]
+TRAINING_DATA_PATH = sys.argv[3]
+
+TRAINING_DATA_PATH = f"{TRAINING_DATA_PATH}/{EPSILON}"
+if not os.path.exists(TRAINING_DATA_PATH):
+    os.mkdir(TRAINING_DATA_PATH)
+
+timestamp = int(time.time()*1000)
 
 game = hlt.Game()
-game.ready(f"{EPSILON}-{MODELPATH}")
+game.ready(f"{EPSILON}-{MODEL_PATH.split('/')[2]}")
+logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 def create_state_array(game_map, ship):
     state = np.zeros((5, game_map.width, game_map.height))
@@ -35,11 +44,11 @@ def create_state_array(game_map, ship):
 
 import tensorflow as tf
 
-if os.path.exists(MODELPATH):
-    logging.info(f"Loading {MODELPATH}")
-    model = tf.keras.models.load_model(MODELPATH)
+if os.path.exists(MODEL_PATH):
+    logging.info(f"Loading {MODEL_PATH}")
+    model = tf.keras.models.load_model(MODEL_PATH)
 else:
-    raise Exception(f"MODELPATH={MODELPATH} not found")
+    raise Exception(f"MODEL_PATH={MODEL_PATH} not found")
 
 states = []
 action_indices = []
@@ -49,9 +58,9 @@ current_qs = []
 
 POSSIBLE_MOVES = [Direction.North, Direction.East, Direction.South, Direction.West, Direction.Still]
 
-logging.info("Successfully1 created bot! My Player ID is {}.".format(game.my_id))
 
 shipid2shipandcell = {}
+
 
 while True:
     game.update_frame()
@@ -86,7 +95,7 @@ while True:
                 move = random.choice(POSSIBLE_MOVES)
                 current_q = "RANDOM"
             else:
-                current_q = model.predict(state)[0]
+                current_q = model.predict(state.reshape(1, *state.shape))[0]
                 move_index = np.argmax(current_q)
                 move = POSSIBLE_MOVES[move_index]
 
@@ -103,11 +112,11 @@ while True:
         dones[-1]=True
         total_reward = 0
         for state, action_index, reward, done, current_q in zip(states, action_indices, rewards, dones, current_qs):
-            logging.info(f"{POSSIBLE_MOVES[action_index]} | {reward} | {done} | {[round(x, 2) for x in current_q]}")
+            logging.info(f"{POSSIBLE_MOVES[action_index]} | {reward} | {done} | {current_q}")
 
         total_reward+=sum(rewards)
         logging.info(f"TotalReward={total_reward}")
 
-        np.savez(f"training/{MODELPATH}/", np.array(states, action_indices, rewards, dones))
+        np.savez(f"{TRAINING_DATA_PATH}/{total_reward}-{timestamp}", np.array([states, action_indices, rewards, dones]))
 
     game.end_turn(command_queue)
