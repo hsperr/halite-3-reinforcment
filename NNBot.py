@@ -42,13 +42,14 @@ def create_state_array(game_map, ship):
     return state
 
 
-import tensorflow as tf
+if not EPSILON == 1.0:
+    import tensorflow as tf
 
-if os.path.exists(MODEL_PATH):
-    logging.info(f"Loading {MODEL_PATH}")
-    model = tf.keras.models.load_model(MODEL_PATH)
-else:
-    raise Exception(f"MODEL_PATH={MODEL_PATH} not found")
+    if os.path.exists(MODEL_PATH):
+        logging.info(f"Loading {MODEL_PATH}")
+        model = tf.keras.models.load_model(MODEL_PATH)
+    else:
+        raise Exception(f"MODEL_PATH={MODEL_PATH} not found")
 
 states = []
 action_indices = []
@@ -117,6 +118,6 @@ while True:
         total_reward+=sum(rewards)
         logging.info(f"TotalReward={total_reward}")
 
-        np.savez(f"{TRAINING_DATA_PATH}/{total_reward}-{timestamp}", np.array([states, action_indices, rewards, dones]))
+        np.savez(f"{TRAINING_DATA_PATH}/{total_reward}_{timestamp}", np.array([states, action_indices, rewards, dones]))
 
     game.end_turn(command_queue)

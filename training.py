@@ -1,5 +1,8 @@
 import os
+import glob
+import tqdm
 import tensorflow as tf
+import numpy as np
 
 def create_model(input_size, output_size):
     from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, BatchNormalization, Add
@@ -51,7 +54,7 @@ if not os.path.exists(TRAINING_DATA_PATH):
 NUM_FEATURES = 5
 FIELD_SIZE = 8
 SEED = 123
-STARTING_EPSILON = 0.0
+STARTING_EPSILON = 1.0
 
 INPUT_SHAPE = (NUM_FEATURES, FIELD_SIZE, FIELD_SIZE)
 OUTPUT_SIZE = 5
@@ -66,18 +69,61 @@ else:
 
     model.save(MODEL_PATH)
 
+EPSILON_DECREASE = 0.95
+EPSILON = STARTING_EPSILON
+NUM_GAMES = 75
+NUM_EPOCHS = 10
+FUTURE_DISCOUNT = 0.95
 
-command = './halite ' \
-          f'--seed {SEED} ' \
-          '--replay-directory replays/ ' \
-          '--turn-limit 10 ' \
-          '--no-timeout ' \
-          '--no-logs -vvv ' \
-          f'--width {FIELD_SIZE} ' \
-          f'--height {FIELD_SIZE} ' \
-          f'"python3 NNBot.py {STARTING_EPSILON} {MODEL_PATH} {TRAINING_DATA_PATH}" ' \
-          f'"python3 NNBot.py {STARTING_EPSILON} {MODEL_PATH} {TRAINING_DATA_PATH}" '
+for epoch in range(NUM_EPOCHS):
 
-print(command)
-os.system(command)
+    command = './halite ' \
+              f'--seed {SEED} ' \
+              '--replay-directory replays/ ' \
+              '--turn-limit 10 ' \
+              '--no-timeout ' \
+              '--no-logs -v ' \
+              '--no-replay ' \
+              f'--width {FIELD_SIZE} ' \
+              f'--height {FIELD_SIZE} ' \
+              f'"python3 NNBot.py {EPSILON} {MODEL_PATH} {TRAINING_DATA_PATH}" ' \
+              f'"python3 NNBot.py {EPSILON} {MODEL_PATH} {TRAINING_DATA_PATH}" '
+
+    for episode in tqdm.tqdm(range(NUM_GAMES)):
+        # print(command)
+        os.system(command)
+
+    #Train Network
+    total_reward = 0
+    training_data = []
+    for file in glob.glob(TRAINING_DATA_PATH+f"{EPSILON}/*.npz"):
+        total_reward += int(file.split('/')[-1].split('_')[0])
+
+        training_data.append(np.load(file, allow_pickle=True)["arr_0"])
+
+    print(f"Epoch: {epoch}, num_files={len(training_data)}, total_reward={total_reward}, avg_reward={round(total_reward/len(training_data), 2)}")
+
+    train_x, train_y = [], []
+
+    for game in training_data:
+        current_qs = model.predict(game[0])
+        for state, current_q, future_q, action_index, reward, done in zip(game[0], current_qs, current_qs[1:], game[1], game[2], game[3]):
+
+            new_q_value = reward
+            if not done:
+                new_q_value = reward + FUTURE_DISCOUNT * np.argmax(future_q)
+
+            train_x.append(state)
+
+            current_q[action_index] = new_q_value
+            # print(current_q, action_index, reward, done, future_q)
+            train_y.append(current_q)
+
+    model.fit(np.array(train_x), np.array(train_y), epochs=10, verbose=1, batch_size=128)
+
+    model.save(MODEL_PATH)
+    model.save(f"{EXPERIMENT_PATH}/EPOCHS/{epoch}/model")
+
+    EPSILON *= EPSILON_DECREASE
+
 
