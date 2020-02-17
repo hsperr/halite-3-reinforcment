@@ -11,7 +11,7 @@ def create_model(input_size, output_size):
     from tensorflow.keras.models import Model
     import tensorflow.keras.backend as K
 
-    learning_rate = 0.01
+    learning_rate = 0.001
 
     x_input = layers.Input(shape=(input_size))
     x1 = Conv2D(64, (3, 3), strides=1, activation='linear', padding="same", data_format='channels_last')(x_input)
@@ -23,8 +23,8 @@ def create_model(input_size, output_size):
     x3 = Conv2D(64, (3, 3), strides=1, activation='linear', padding="same", data_format='channels_last')(x2)
     x3 = BatchNormalization()(x3)
     x3 = Activation("relu")(x3)
-    x3 = Flatten()(x3)
-    x = Dense(128, activation='relu')(x3)
+    x = Flatten()(x3)
+    x = Dense(128, activation='relu')(x)
     x = Dense(128, activation='relu')(x)
     output = Dense(output_size, activation='linear')(x)
     model = Model(x_input, output)
@@ -59,6 +59,12 @@ STARTING_EPSILON = 1.0
 INPUT_SHAPE = (NUM_FEATURES, FIELD_SIZE, FIELD_SIZE)
 OUTPUT_SIZE = 5
 
+EPSILON_DECREASE = 0.8
+EPSILON = STARTING_EPSILON
+NUM_GAMES = 200
+NUM_EPOCHS = 20
+FUTURE_DISCOUNT = 0.95
+
 if os.path.exists(MODEL_PATH):
     model = tf.keras.models.load_model(MODEL_PATH)
 else:
@@ -68,12 +74,6 @@ else:
         model.summary(print_fn=lambda x: f.write(x + "\n"))
 
     model.save(MODEL_PATH)
-
-EPSILON_DECREASE = 0.95
-EPSILON = STARTING_EPSILON
-NUM_GAMES = 75
-NUM_EPOCHS = 10
-FUTURE_DISCOUNT = 0.95
 
 for epoch in range(NUM_EPOCHS):
 
@@ -90,34 +90,42 @@ for epoch in range(NUM_EPOCHS):
               f'"python3 NNBot.py {EPSILON} {MODEL_PATH} {TRAINING_DATA_PATH}" '
 
     for episode in tqdm.tqdm(range(NUM_GAMES)):
-        # print(command)
         os.system(command)
 
-    #Train Network
     total_reward = 0
     training_data = []
-    for file in glob.glob(TRAINING_DATA_PATH+f"{EPSILON}/*.npz"):
+    for file in tqdm.tqdm(glob.glob(TRAINING_DATA_PATH+f"{EPSILON}/*.npz")):
         total_reward += int(file.split('/')[-1].split('_')[0])
 
-        training_data.append(np.load(file, allow_pickle=True)["arr_0"])
+        try:
+            training_data.append(np.load(file, allow_pickle=True)["arr_0"])
+        except Exception as e:
+            print(file, "error:", e)
 
     print(f"Epoch: {epoch}, num_files={len(training_data)}, total_reward={total_reward}, avg_reward={round(total_reward/len(training_data), 2)}")
 
     train_x, train_y = [], []
 
-    for game in training_data:
-        current_qs = model.predict(game[0])
+    for game in tqdm.tqdm(training_data):
+        feat = np.array(game[0])
+        try:
+            current_qs = model.predict(feat)
+        except Exception as e:
+            print(e)
+            continue
+
         for state, current_q, future_q, action_index, reward, done in zip(game[0], current_qs, current_qs[1:], game[1], game[2], game[3]):
 
             new_q_value = reward
             if not done:
                 new_q_value = reward + FUTURE_DISCOUNT * np.argmax(future_q)
 
-            train_x.append(state)
 
-            current_q[action_index] = new_q_value
-            # print(current_q, action_index, reward, done, future_q)
-            train_y.append(current_q)
+            new_q = np.array([x for x in current_q])
+            new_q[action_index] = new_q_value
+
+            train_x.append(state)
+            train_y.append(new_q)
 
     model.fit(np.array(train_x), np.array(train_y), epochs=10, verbose=1, batch_size=128)
 
@@ -126,4 +134,7 @@ for epoch in range(NUM_EPOCHS):
 
     EPSILON *= EPSILON_DECREASE
 
+    TD_PATH = f"{TRAINING_DATA_PATH}/{EPSILON}"
+    if not os.path.exists(TD_PATH):
+        os.mkdir(TD_PATH)
 

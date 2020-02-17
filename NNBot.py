@@ -110,7 +110,7 @@ while True:
         command_queue.append(me.shipyard.spawn())
 
     if game.turn_number == constants.MAX_TURNS:
-        dones[-1]=True
+        dones[-1] = True
         total_reward = 0
         for state, action_index, reward, done, current_q in zip(states, action_indices, rewards, dones, current_qs):
             logging.info(f"{POSSIBLE_MOVES[action_index]} | {reward} | {done} | {current_q}")
