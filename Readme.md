@@ -6,7 +6,7 @@ Its a competition where you implement the behavior of bots to collect resources.
 The key rules of the game are:
 * Each player starts with 5000 resources in their "bank" and can build ships in your main base. 
 * A ship costs 1000 resources and can either move up, down, left, right, collect resources or build a depot.
-* Ships can move around the playfield and collect resources that they need to drop off at either your main base or a depot
+* Ships can move around the play field and collect resources that they need to drop off at either your main base or a depot
 * Moving around costs 10% of the resources on a given field
 * Collecting resources takes one turn and collects 25% of the resources on the given field
 * Building another depot (to reduce travel times) costs 4000 resources
@@ -15,14 +15,15 @@ The key rules of the game are:
 
 As you can see there is quite some complexity to the game. For this tutorial(series) I want to focus on building a reinforcement learning framework that focuses on moving ships, and collecting resources, maybe even decide when and how many ships to build but the first part is already complex enough.
 
-Checkout the page of the competiton above for more details about the rules.
+Checkout the page of the competition above for more details about the rules.
 
 ![example game](https://user-images.githubusercontent.com/1778723/72680785-25c3af00-3abe-11ea-909d-109d440b0fde.gif)
 
-Back when the competiton was on I first build a rule based bot which if I remember correctly eneded up in the top 200. Towards the end of the competition I got inspired by a YouTuber called [sentdex](https://www.youtube.com/sentdex) who got me into the competition in the first place.
+Back when the competition was on I first build a rule based bot which if I remember correctly ended up in the top 200. 
+Towards the end of the competition I got inspired by a YouTuber called [sentdex](https://www.youtube.com/sentdex) who got me into the competition in the first place.
 Also a really good reference on how to encode the game into a neural network is the writeup of [Joshua Staker](https://stakernotes.com/).
 
-He tried to apply neural networks aswell starting from a random bot which would learn by playing itself over and over again.
+He tried to apply neural networks as well starting from a random bot which would learn by playing itself over and over again.
 I am not sure his efforts lead to a final version which did things but it was really hard to model anything since there is a lot of noise in just random games. Things like prioritizing big chunks of resources vs small ones and venturing further for bigger reward are hard to model since a random walk is most likely never going to return to the base again to hand it off.
 
 I then started to download the replays of the top players and tried to learn them using neural networks and various approaches but it never lead to anything. I also tried some Deep Q-Learning tutorials back then and got the ships to not run into each other all the time and collect a small amount of halite. This was a lot of fudging everything together and somehow changing the reward function mid training depending on which issues the current bot had (e.g. just not crashing ships is good).
@@ -89,32 +90,41 @@ We will use this bot as a baseline. Mainly in the case where we only build one s
 
 # Q-Learning
 
-I did not first try Q-Learning but after playing around a lot with Deep Q-Learning and nothing working I decided to make the problem simpler and simpler until I can get an Idea of whats happening.
+This game is not a good example for Q-Learning since the state space is huge and Q-Learning basically needs us to learn all the states in order to make meaningful predictions.
+
+We will still start with simple Q-Learning because after playing around a lot with Deep Q-Learning and nothing working I decided to make the problem simpler and simpler until I can get an Idea of whats happening.
 This then helped me actually find a couple of bugs in my code which after fixing them let me progress with my neural networks so I want to show this even though we will not be able to do a lot with Q-Learning and this game.
+Later I will cover a bit more on this in my opinion very important idea, to start with the problem as small as possible to verify as much as possible that you don't have problems in your pipeline. Otherwise you will waste a lot of time, trust me ;)
 
 Generally Q-Learning is just a way to store each possible state of the game and the expected rewards for every possible action from that state.
-Inititally you just randomly initialize the table and take random actions checking which rewards you get updating your table and your actions along the way.
+Inititially you just randomly initialize the table and take random actions checking which rewards you get updating your table and your actions along the way.
 
 If you want to get a good idea of what Q-Learning are just google around there is plenty of pretty good medium posts and other resources, I just want to list a couple
 
-* Again a shoutout to sentdex for his video [Q Learning Intro/Table - Reinforcement Learning p.1](https://www.youtube.com/watch?v=yMk_XtIEzH8)
+* Again a shout out to sentdex for his video [Q Learning Intro/Table - Reinforcement Learning p.1](https://www.youtube.com/watch?v=yMk_XtIEzH8)
 * Also Arthur Juliani for his series on [Simple Reinforcement Learning with Tensorflow Part 0: Q-Learning with Tables and Neural Networks](https://medium.com/emergent-future/simple-reinforcement-learning-with-tensorflow-part-0-q-learning-with-tables-and-neural-networks-d195264329d0)
 
-Again thers is plenty other really good resources out there.
+Again there is plenty other really good resources out there.
 
 ## Representing State
 
-In order to store the state in a table to use Q-Learning we need to think about how we want to represent our game.
-Since I first did neural networks and then Q-Learning I reused the features from the neural networks to represent the state in my Q-Learning aswell.
-There is multiple ways on how to do this. The way I saw it in [sentdex's](https://www.youtube.com/watch?v=1niezMc2kpM&list=PLQVvvaa0QuDcJe7DPD0I5J-EDKomQDKsz&index=7) video is to build a matrix centered round each ship, where multiple layers contain the resources, the ships and structures etc. 
+In order to store the state of our game both for the Q-Learning table as well as later for the network we need to think about how we want to represent our game.
+Since I first did neural networks and then Q-Learning I reused the features from the neural networks to represent the state in my Q-Learning as well.
+There is multiple ways on how to do this. The way I saw it in [sentdex's](https://www.youtube.com/watch?v=1niezMc2kpM&list=PLQVvvaa0QuDcJe7DPD0I5J-EDKomQDKsz&index=7)
+ video is to build a matrix centered round each ship, where multiple layers contain the resources, the ships and structures etc. 
 
-
-While doing this initially I found that it seems to be hard for a network to learn not to run into other ships. Even though it predicts each ship it can't really imagine how to the world of the other ships look like and which moves they want to do.
+While doing this initially I found that it seems to be hard for a network to learn not to run into other ships.
+ Even though it predicts each ship it can't really imagine how to the world of the other ships look like and which moves they want to do.
 
 While reading up on multi agent learning I found this medium post [A Simple Approach to Multi-Agent Deep Reinforcement Learning
- by Shyam](https://medium.com/@schoudharypub/a-simple-approach-to-multi-agent-deep-reinforcement-learning-db719bb1e63cF) in which he explains a paper that found that representing one global view on the game and telling the network which agent is currently being predicted in a separate feature layer seems to work well for multi agent settings.
+ by Shyam](https://medium.com/@schoudharypub/a-simple-approach-to-multi-agent-deep-reinforcement-learning-db719bb1e63cF)
+  in which he explains a paper that found that representing one global view on the game and telling the network which agent is currently being predicted in a separate feature layer seems to work well for multi agent settings.
+  The article it seems has since been deleted, the github and whole medium account aswell. So I am nut sure what happend there.
 
- Also [Joshua Staker](https://stakernotes.com/diamond-ranked-ml-for-halite3/) the winning ML bot in this competition modeled one global matrix centered around the main shipyard. His network actually calculated for each cell on the board which move should be taken. During training he just masked all the fields that did not contain a ship so that it only propagated the error of the fields that actually contained a ship. It is also important to note that he did a supervised learning approach, learning the top three rule based bots behaviors.
+ Also [Joshua Staker](https://stakernotes.com/diamond-ranked-ml-for-halite3/) the winning ML bot in this competition modeled one global matrix centered around the main shipyard. 
+ His network actually calculated for each cell on the board which move should be taken.
+  During training he just masked all the fields that did not contain a ship so that it only propagated the error of the fields that actually contained a ship.
+   It is also important to note that he did a supervised learning approach, learning the top three rule based bots behaviors.
 
 While we will explore various versions of the above mentioned approaches for the Q-Learning I modelled it as a `6 x size x size`  where `size` is the size of the playfield e.g. 32 (then it would be a 6x32x32 matrix)
 
