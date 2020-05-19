@@ -1,13 +1,18 @@
 
 import numpy as np
+import shutil
 import tqdm
 import os
+import time
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical, Normal
+
+from torch.utils.data.dataset import TensorDataset
+from torch.utils.data.dataloader import DataLoader
 
 
 class PPO(nn.Module):
@@ -33,6 +38,24 @@ class PPO(nn.Module):
             ),
             nn.ReLU(),
 
+            nn.BatchNorm2d(32),
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=32,
+                kernel_size=(3, 3),
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=32,
+                kernel_size=(3, 3),
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
             nn.BatchNorm2d(32),
             nn.Conv2d(
                 in_channels=32,
@@ -89,8 +112,8 @@ state_dims = (8,8,6)
 n_actions = 5
 
 ppo_steps = 10
-test_steps = 10
-epochs = 4
+test_steps = 25
+epochs = 10
 
 best_test_reward = 0
 best_train_reward = 0
@@ -127,27 +150,29 @@ current_actor = "./ppo/models/actor_critic_initial_pytorch.model"
 torch.save(model, current_actor)
 
 print("Initialized everything")
-
+import subprocess
 def play(data_path, deterministic=0, seed=None, replay=False):
-    command = './halite ' \
-          '--replay-directory replays/ ' \
-          '--no-timeout ' \
-          '--turn-limit 100 ' \
-          '--no-logs -v ' \
-          f'--width {FIELD_SIZE} ' \
-          f'--height {FIELD_SIZE} '
+    command = ['./halite' ,
+          '--replay-directory replays/' ,
+          '--no-timeout',
+          '--turn-limit 100',
+          '--no-logs',
+          '-v',
+          f'--width {FIELD_SIZE}',
+          f'--height {FIELD_SIZE}'
+    ]
 
     if not replay:
-        command += '--no-replay ' \
+        command.append('--no-replay')
 
     if seed:
-        command += f"--seed {seed} "
+        command.append(f"--seed {seed}")
 
-    command  += f'"python3 PPOTorchBot.py {current_actor} {data_path} {deterministic}" ' \
-          f'"python3 PPOTorchBot.py {current_actor} {data_path} {deterministic}" '
+    command.append(f'"python3 PPOTorchBot.py {current_actor} {data_path} {deterministic}"')
+    command.append(f'"python3 PPOTorchBot.py {current_actor} {data_path} {deterministic}"')
 
-    #print(command)
-    os.system(command)
+    subprocess.call(' '.join(command), shell=True)
+    # os.system(command)
 
 
 
@@ -182,37 +207,47 @@ def finish_episode(states, actions, rewards, dones):
     # for a, r in a2r.items():
     #     print(f"action={a}, return={r}, count={a2c[a]}, return={a2re[a]}")
 
+
     old_action_probs, old_values = model(states)
     old_dist = Categorical(old_action_probs)
     old_log_probs = old_dist.log_prob(actions)
 
+    returns = calc_returns_actor_critic(rewards, dones)
+
+    myData = TensorDataset(states, actions, returns, old_log_probs)
+    myDataLoader = DataLoader(myData, batch_size=512, shuffle=True)
+
     for i in range(epochs):
-        action_probs, values = model(states)
-        dist = Categorical(action_probs)
-        log_probs = dist.log_prob(actions)
-        dist_entropy = dist.entropy()
+        losses = []
+        policy_losses = []
+        value_losses = []
+        entropy_losses = []
+        for states, actions, returns, old_log_probs in myDataLoader:
+            action_probs, values = model(states)
+            dist = Categorical(action_probs)
+            log_probs = dist.log_prob(actions)
+            dist_entropy = dist.entropy()
 
-        ratios = (log_probs - old_log_probs.detach()).exp()
-        advantages = returns - values.detach()
-        surr1 = ratios * advantages
-        surr2 = torch.clamp(ratios, 1 - 0.2, 1 + 0.2) * advantages
-        policy_loss = -torch.min(surr1, surr2)
-        value_loss = F.mse_loss(values, returns)
-        loss = policy_loss + 0.5 * value_loss - 0.01 * dist_entropy
-        loss = loss.mean()
+            ratios = (log_probs - old_log_probs.detach()).exp()
+            advantages = returns - values.detach()
+            surr1 = ratios * advantages
+            surr2 = torch.clamp(ratios, 1 - 0.2, 1 + 0.2) * advantages
+            policy_loss = -torch.min(surr1, surr2)
+            value_loss = F.mse_loss(values, returns)
+            loss = policy_loss + 0.5 * value_loss - 0.01 * dist_entropy
+            loss = loss.mean()
 
+            losses.append(loss.item())
+            policy_losses.append(policy_loss.mean().item())
+            value_losses.append(value_loss.item())
+            entropy_losses.append(dist_entropy.mean().item())
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
         # take gradient step
-        print(f""
-              f"Samples: {len(rewards)} "
-              f"Loss: {loss.item()} - "
-              f"policy: {policy_loss.mean().item()} - "
-              f"value: {value_loss.item()} - "
-              f"entropy: {dist_entropy.mean().item()} - "
-              f"avg_return: {returns.mean()}"
-              )
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        print(f"epoch={i}, samples={len(rewards)}, avg_loss={np.mean(losses)} -"
+              f" policy={np.mean(policy_losses)} | value={np.mean(value_losses)} | entropy={np.mean(entropy_losses)}")
 
 
 
@@ -270,12 +305,31 @@ def plot_model_history(train_rewards, test_rewards, iter):
 
 test_rewards = []
 train_rewards = []
+
+
+def worker_play(args):
+    dp, det, seed, repl = args
+    play(
+        data_path=dp,
+        deterministic=det,
+        seed=seed,
+        replay=repl
+    )
+
+import multiprocessing
+from multiprocessing import Pool
+
+pool = Pool(multiprocessing.cpu_count()//2)
+
+
 while iters < max_iters:
+    t0 = time.time()
     DATA_PATH = f'ppo/data/{iters}'
     print(DATA_PATH)
 
-    for x in tqdm.tqdm(range(ppo_steps)):
-        play(data_path=DATA_PATH, deterministic=0)
+    # for x in tqdm.tqdm(range(ppo_steps)):
+    for _ in tqdm.tqdm(pool.imap_unordered(worker_play, [(DATA_PATH, 0, None, False) for x in range(ppo_steps)]), total=ppo_steps):
+        pass
 
     # play(data_path=DATA_PATH, deterministic=1, seed=1)
 
@@ -304,8 +358,9 @@ while iters < max_iters:
     TEST_PATH = DATA_PATH+"/test"
     if not os.path.exists(TEST_PATH):
         os.mkdir(TEST_PATH)
-    for i in tqdm.tqdm(range(test_steps)):
-        play(TEST_PATH, deterministic=1, seed=i, replay=True)
+
+    for _ in tqdm.tqdm(pool.imap_unordered(worker_play, [(TEST_PATH, 1, x, True) for x in range(ppo_steps)]), total=test_steps):
+        pass
 
     states, actions, rewards, dones = load_samples(TEST_PATH)
     avg_reward = np.mean(rewards)
@@ -316,8 +371,10 @@ while iters < max_iters:
         torch.save(model, current_actor)
         best_test_reward = avg_reward
 
-    print(f'total test reward={avg_reward}, current best={best_test_reward}, rewards={test_rewards[-5:]}')
+    print(f'total test reward={avg_reward}, current best={best_test_reward}, rewards={test_rewards[-5:]} - time={t0-time.time()}')
     iters += 1
     if iters % 10 == 0:
         plot_model_history(train_rewards, test_rewards, iters)
+
+    shutil.rmtree(DATA_PATH)
 

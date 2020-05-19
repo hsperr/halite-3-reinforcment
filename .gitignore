@@ -1,6 +1,13 @@
-.log
+*.zip
+*.log
 .hlt
 tags
 .idea
+.DS_Store
 __pycache__
 replays
+experiments
+data
+rule_based
+training
+images
